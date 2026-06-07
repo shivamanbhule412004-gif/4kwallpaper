@@ -1,19 +1,32 @@
 import { useEffect, useState } from "react";
-import { X, Download, Share2, Eye, Calendar, Tag, Monitor, FileText, Heart, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { X, Download, Share2, Eye, Calendar, Tag, Monitor, FileText, Heart, ChevronLeft, ChevronRight } from "lucide-react";
 import { Wallpaper } from "./WallpaperCard";
+import { RelatedPosts } from "./RelatedPosts";
 
 interface WallpaperModalProps {
   wallpaper: Wallpaper | null;
   onClose: () => void;
   onDownload: (wallpaper: Wallpaper) => void;
   wallpapers: Wallpaper[];
+  onSelectWallpaper?: (wallpaper: Wallpaper) => void;
 }
 
-export function WallpaperModal({ wallpaper, onClose, onDownload, wallpapers }: WallpaperModalProps) {
+export function WallpaperModal({ 
+  wallpaper, 
+  onClose, 
+  onDownload, 
+  wallpapers,
+  onSelectWallpaper 
+}: WallpaperModalProps) {
   const [liked, setLiked] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  const currentIndex = wallpapers.findIndex((w) => w.id === wallpaper?.id);
+  useEffect(() => {
+    if (!wallpaper) return;
+    const index = wallpapers.findIndex((w) => w.id === wallpaper.id);
+    setCurrentIndex(index);
+  }, [wallpaper, wallpapers]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -34,13 +47,15 @@ export function WallpaperModal({ wallpaper, onClose, onDownload, wallpapers }: W
 
   const handleNext = () => {
     if (currentIndex < wallpapers.length - 1) {
-      // handled by parent via onClose + next
+      const nextWallpaper = wallpapers[currentIndex + 1];
+      if (onSelectWallpaper) onSelectWallpaper(nextWallpaper);
     }
   };
 
   const handlePrev = () => {
     if (currentIndex > 0) {
-      // handled by parent
+      const prevWallpaper = wallpapers[currentIndex - 1];
+      if (onSelectWallpaper) onSelectWallpaper(prevWallpaper);
     }
   };
 
@@ -62,15 +77,15 @@ export function WallpaperModal({ wallpaper, onClose, onDownload, wallpapers }: W
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 overflow-y-auto"
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm -z-10" />
 
       {/* Modal */}
       <div
-        className="relative z-10 bg-white rounded-3xl overflow-hidden shadow-2xl w-full max-w-[980px] max-h-[92vh] flex flex-col md:flex-row"
+        className="relative z-10 bg-white rounded-3xl overflow-hidden shadow-2xl w-full max-w-[980px] max-h-[92vh] flex flex-col md:flex-row my-8"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Image side */}
@@ -83,7 +98,7 @@ export function WallpaperModal({ wallpaper, onClose, onDownload, wallpapers }: W
 
           {/* Close */}
           <button
-            className="absolute top-3 left-3 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/70 transition-colors"
+            className="absolute top-3 left-3 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
             onClick={onClose}
           >
             <X className="w-4.5 h-4.5" />
@@ -92,9 +107,10 @@ export function WallpaperModal({ wallpaper, onClose, onDownload, wallpapers }: W
           {/* Nav arrows */}
           {currentIndex > 0 && (
             <button
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/70 transition-colors"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
               onClick={(e) => {
                 e.stopPropagation();
+                handlePrev();
               }}
             >
               <ChevronLeft className="w-5 h-5" />
@@ -102,9 +118,10 @@ export function WallpaperModal({ wallpaper, onClose, onDownload, wallpapers }: W
           )}
           {currentIndex < wallpapers.length - 1 && (
             <button
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/70 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
               onClick={(e) => {
                 e.stopPropagation();
+                handleNext();
               }}
             >
               <ChevronRight className="w-5 h-5" />
@@ -120,9 +137,9 @@ export function WallpaperModal({ wallpaper, onClose, onDownload, wallpapers }: W
         </div>
 
         {/* Info side */}
-        <div className="w-full md:w-[300px] lg:w-[340px] flex flex-col overflow-y-auto bg-white">
+        <div className="w-full md:w-[300px] lg:w-[340px] flex flex-col overflow-y-auto bg-white max-h-[92vh] md:max-h-full">
           {/* Header */}
-          <div className="p-5 pb-4 border-b border-gray-100">
+          <div className="p-5 pb-4 border-b border-gray-100 sticky top-0 bg-white">
             <div className="flex items-start justify-between gap-2 mb-3">
               <h2
                 className="text-[18px] font-bold text-[#111111] leading-snug"
@@ -216,7 +233,7 @@ export function WallpaperModal({ wallpaper, onClose, onDownload, wallpapers }: W
           </div>
 
           {/* Actions */}
-          <div className="p-5 mt-auto flex flex-col gap-2.5">
+          <div className="p-5 mt-auto flex flex-col gap-2.5 bg-white sticky bottom-0">
             <button
               className="w-full flex items-center justify-center gap-2 bg-[#111111] text-white font-bold text-[14px] h-12 rounded-2xl hover:bg-[#2B6FE8] transition-colors"
               onClick={() => onDownload(wallpaper)}
@@ -235,6 +252,22 @@ export function WallpaperModal({ wallpaper, onClose, onDownload, wallpapers }: W
           </div>
         </div>
       </div>
+
+      {/* Related Posts Section - Outside Modal */}
+      {wallpaper && (
+        <div className="w-full mt-0">
+          <RelatedPosts
+            wallpaper={wallpaper}
+            allWallpapers={wallpapers}
+            onWallpaperClick={(w) => {
+              if (onSelectWallpaper) {
+                onSelectWallpaper(w);
+              }
+            }}
+            onDownload={onDownload}
+          />
+        </div>
+      )}
     </div>
   );
 }
