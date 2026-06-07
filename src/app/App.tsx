@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Header } from "./components/Header";
 import { WallpaperGrid } from "./components/WallpaperGrid";
 import { WallpaperModal } from "./components/WallpaperModal";
@@ -6,9 +6,9 @@ import { AdminUpload } from "./components/AdminUpload";
 import { CategoryFilter } from "./components/CategoryFilter";
 import { Wallpaper } from "./components/WallpaperCard";
 import { projectId, publicAnonKey } from "/utils/supabase/info";
+import { generateSmartFeed } from "../lib/feedAlgorithm";
 import { RefreshCw, TrendingUp, Clock, Sparkles } from "lucide-react";
 import logoImg from "../imports/ChatGPT_Image_Jun_1__2026__07_31_03_PM__2_.png";
-// Logo: dark rounded icon with "4" and blue dot accent
 
 const API = `https://${projectId}.supabase.co/functions/v1/make-server-595c7c29`;
 const HEADERS = { Authorization: `Bearer ${publicAnonKey}` };
@@ -252,6 +252,7 @@ const SAMPLE_WALLPAPERS: Wallpaper[] = [
 
 export default function App() {
   const [wallpapers, setWallpapers] = useState<Wallpaper[]>([]);
+  const [allWallpapers, setAllWallpapers] = useState<Wallpaper[]>([]);
   const [categories, setCategories] = useState<string[]>(["All"]);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -260,6 +261,8 @@ export default function App() {
   const [selectedWallpaper, setSelectedWallpaper] = useState<Wallpaper | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [adminClickCount, setAdminClickCount] = useState(0);
+  const [displayCount, setDisplayCount] = useState(20);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   const fetchWallpapers = useCallback(async () => {
     setLoading(true);
@@ -302,12 +305,21 @@ export default function App() {
         result = [...result, ...sampleFiltered];
       }
 
-      // Apply sort
-      if (sortMode === "popular") result.sort((a, b) => b.downloadCount - a.downloadCount);
-      else if (sortMode === "trending") result.sort((a, b) => b.views - a.views);
-      else result.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      // Store all wallpapers for related posts
+      setAllWallpapers(result);
 
-      setWallpapers(result);
+      // Apply smart feed algorithm
+      let feedWallpapers = result;
+      if (sortMode === "trending") {
+        feedWallpapers = generateSmartFeed(result, result.length);
+      } else if (sortMode === "popular") {
+        feedWallpapers = [...result].sort((a, b) => b.downloadCount - a.downloadCount);
+      } else {
+        feedWallpapers = [...result].sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      }
+
+      setWallpapers(feedWallpapers);
+      setDisplayCount(20); // Reset pagination
 
       // Update categories
       const allCats = ["All", ...new Set(result.map((w) => w.category))];
@@ -316,6 +328,7 @@ export default function App() {
       console.error("Error fetching wallpapers:", err);
       // Fallback to sample data
       setWallpapers(SAMPLE_WALLPAPERS);
+      setAllWallpapers(SAMPLE_WALLPAPERS);
       setCategories(["All", ...new Set(SAMPLE_WALLPAPERS.map((w) => w.category))]);
     } finally {
       setLoading(false);
@@ -325,6 +338,28 @@ export default function App() {
   useEffect(() => {
     fetchWallpapers();
   }, [fetchWallpapers]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && displayCount < wallpapers.length) {
+          setDisplayCount((prev) => Math.min(prev + 20, wallpapers.length));
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [displayCount, wallpapers.length]);
 
   const handleDownload = async (wallpaper: Wallpaper) => {
     try {
@@ -371,7 +406,7 @@ export default function App() {
     }
   };
 
-  const displayedWallpapers = wallpapers;
+  const displayedWallpapers = wallpapers.slice(0, displayCount);
 
   return (
     <div
@@ -460,6 +495,11 @@ export default function App() {
             onDownload={handleDownload}
           />
         </div>
+
+        {/* Lazy load trigger */}
+        {displayCount < wallpapers.length && (
+          <div ref={observerTarget} className="h-4" />
+        )}
       </main>
 
       {/* Footer */}
@@ -518,13 +558,14 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Wallpaper detail modal */}
+      {/* Wallpaper detail modal with related posts */}
       {selectedWallpaper && (
         <WallpaperModal
           wallpaper={selectedWallpaper}
           onClose={() => setSelectedWallpaper(null)}
           onDownload={handleDownload}
-          wallpapers={displayedWallpapers}
+          wallpapers={allWallpapers}
+          onSelectWallpaper={setSelectedWallpaper}
         />
       )}
 
